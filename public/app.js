@@ -58,17 +58,26 @@ function showToast(msg) {
     setTimeout(() => toastEl.classList.add('hide'), 3000);
 }
 
-// Time Synchronization
+// Time Synchronization — Multi-sample averaging for accuracy on public internet
 let serverTimeOffset = 0;
+let ntpSamples = [];
 function syncTimeWithServer() {
     const start = Date.now();
     socket.emit('get-time', (serverTime) => {
         const end = Date.now();
-        const latency = (end - start) / 2;
-        serverTimeOffset = serverTime - (start + latency);
+        const rtt = end - start;
+        const latency = rtt / 2;
+        const offset = serverTime - (start + latency);
+        
+        // Keep last 5 samples, use the one with lowest RTT (most accurate)
+        ntpSamples.push({ offset, rtt });
+        if (ntpSamples.length > 5) ntpSamples.shift();
+        
+        const sorted = [...ntpSamples].sort((a, b) => a.rtt - b.rtt);
+        serverTimeOffset = sorted[0].offset;
     });
 }
-setInterval(syncTimeWithServer, 5000);
+setInterval(syncTimeWithServer, 3000);
 syncTimeWithServer();
 
 function getSyncedTime() {
@@ -127,7 +136,7 @@ function onPlayerReady(event, startState, startTime) {
                 const state = ytPlayer.getPlayerState();
                 socket.emit('sync', currentRoom, time, state, getSyncedTime());
             }
-        }, 2000);
+        }, 1000); // Sync pulse every 1s for tighter tracking
     }
 }
 
@@ -385,11 +394,31 @@ setInterval(() => {
     if (isHost || !isPlayerReady || !latestHostSync.valid || latestHostSync.state !== 1 || ytPlayer.getPlayerState() !== 1) return; 
     const elapsedRealTime = Math.max(0, (getSyncedTime() - latestHostSync.serverTimestamp) / 1000);
     const expectedTime = latestHostSync.mediaTime + elapsedRealTime;
-    const drift = ytPlayer.getCurrentTime() - expectedTime; 
+    const currentTime = ytPlayer.getCurrentTime();
+    const drift = currentTime - expectedTime; // negative = behind host
     
-    if (Math.abs(drift) > 2.0) return;
+    // Hard seek for massive drift
+    if (Math.abs(drift) > 2.0) {
+        overrideStateChange = true;
+        ytPlayer.seekTo(expectedTime);
+        ytPlayer.setPlaybackRate(1.0);
+        setTimeout(() => overrideStateChange = false, 100);
+        return;
+    }
     
-    if (drift < -0.05) ytPlayer.setPlaybackRate(1.25);
-    else if (drift > 0.05) ytPlayer.setPlaybackRate(0.75);
-    else ytPlayer.setPlaybackRate(1.0);
-}, 250);
+    // Proportional correction — the further off, the more aggressive
+    const absDrift = Math.abs(drift);
+    let rate = 1.0;
+    
+    if (absDrift < 0.02) {
+        rate = 1.0; // Within 20ms — perfect, do nothing
+    } else if (absDrift < 0.1) {
+        rate = drift < 0 ? 1.05 : 0.95; // Gentle nudge
+    } else if (absDrift < 0.5) {
+        rate = drift < 0 ? 1.15 : 0.85; // Moderate push
+    } else {
+        rate = drift < 0 ? 1.5 : 0.5; // Aggressive catch-up
+    }
+    
+    ytPlayer.setPlaybackRate(rate);
+}, 200); // Run 5x per second
