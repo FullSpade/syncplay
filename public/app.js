@@ -1,4 +1,14 @@
-const socket = io();
+const socket = io({
+    transports: ['websocket', 'polling']
+});
+
+socket.on('connect', () => {
+    console.log('Connected to server');
+});
+
+socket.on('connect_error', (err) => {
+    console.error('Connection error:', err.message);
+});
 
 // UI Elements
 const setupView = document.getElementById('setup-view');
