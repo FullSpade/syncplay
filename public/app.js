@@ -198,7 +198,7 @@ joinBtn.addEventListener('click', () => {
             hostControls.classList.remove('hidden');
             showToast("You created the room! You are the Host.");
         } else {
-            clientOverlay.classList.remove('hidden');
+            clientOverlay.classList.add('hidden');
             showToast("Joined room successfully.");
         }
         
@@ -421,4 +421,11 @@ setInterval(() => {
     }
     
     ytPlayer.setPlaybackRate(rate);
+    
+    // Show overlay only during significant drift
+    if (absDrift > 0.5) {
+        clientOverlay.classList.remove('hidden');
+    } else if (absDrift < 0.1) {
+        clientOverlay.classList.add('hidden');
+    }
 }, 200); // Run 5x per second
