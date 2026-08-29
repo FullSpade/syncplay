@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyncPlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div id="app" class="container">
+        <header id="main-header">
+            <h1>Sync<span class="highlight">Play</span></h1>
+            <p>Listen & watch together, anywhere.</p>
+        </header>
+
+        <main>
+            <!-- Setup View -->
+            <section id="setup-view" class="card fade-in">
+                <h2>Join a Room</h2>
+                <div class="input-group">
+                    <input type="text" id="name-input" placeholder="Your Display Name" />
+                    <input type="text" id="room-input" placeholder="Enter Room ID (e.g., chill-room)" />
+                </div>
+                <button id="join-btn" class="primary-btn">Join / Create Room</button>
+            </section>
+
+            <!-- Player View: 3 Column Layout -->
+            <section id="player-view" class="app-layout hidden fade-in">
+                
+                <!-- Left Sidebar: Active Listeners -->
+                <aside id="participants-sidebar" class="sidebar card">
+                    <div class="sidebar-header">
+                        <h3>Listeners <span class="badge" id="listener-count">0</span></h3>
+                    </div>
+                    <ul id="participants-list" class="styled-list">
+                        <!-- Populated by JS -->
+                    </ul>
+                </aside>
+
+                <!-- Center: Video Player -->
+                <div id="main-player-area" class="card">
+                    <div class="room-info">
+                        <span class="status-indicator"></span>
+                        <h3>Room: <span id="room-display"></span></h3>
+                        <span id="role-badge" class="badge">Role</span>
+                        <button id="theater-btn">Theater Mode</button>
+                    </div>
+
+                    <div class="video-container">
+                        <div id="player"></div>
+                        <div id="client-overlay" class="overlay hidden">
+                            <p>Syncing to Host...</p>
+                        </div>
+                    </div>
+
+                    <div id="host-controls" class="controls hidden">
+                        <div class="input-group row-group">
+                            <input type="text" id="video-url-input" placeholder="YouTube Video ID or URL" />
+                            <button id="load-btn" class="secondary-btn">Load</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar: Live Chat -->
+                <aside id="chat-sidebar" class="sidebar card">
+                    <div class="sidebar-header">
+                        <h3>Live Chat</h3>
+                    </div>
+                    <ul id="chat-messages" class="styled-list chat-list">
+                        <!-- Populated by JS -->
+                    </ul>
+                    <div class="chat-input-area">
+                        <input type="text" id="chat-input" placeholder="Say something..." autocomplete="off"/>
+                        <button id="send-chat-btn" class="primary-btn">Send</button>
+                    </div>
+                </aside>
+
+            </section>
+        </main>
+        
+        <!-- Toast Notification -->
+        <div id="toast" class="toast hidden">Notification message</div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
