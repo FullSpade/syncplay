@@ -406,19 +406,22 @@ setInterval(() => {
         return;
     }
     
-    // Proportional correction — using only YouTube-supported rates
-    // Supported: 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0
+    // Proportional correction — granular rates in 0.05 increments
     const absDrift = Math.abs(drift);
     let rate = 1.0;
     
-    if (absDrift < 0.03) {
-        rate = 1.0; // Within 30ms — locked in, do nothing
-    } else if (absDrift < 0.3) {
-        rate = drift < 0 ? 1.25 : 0.75; // Light correction
-    } else if (absDrift < 1.0) {
-        rate = drift < 0 ? 1.5 : 0.5;   // Moderate correction
+    if (absDrift < 0.02) {
+        rate = 1.0;  // Within 20ms — perfect sync
+    } else if (absDrift < 0.08) {
+        rate = drift < 0 ? 1.10 : 0.90;  // Fine correction
+    } else if (absDrift < 0.2) {
+        rate = drift < 0 ? 1.20 : 0.80;  // Moderate correction
+    } else if (absDrift < 0.5) {
+        rate = drift < 0 ? 1.35 : 0.65;  // Strong correction
+    } else if (absDrift < 1.5) {
+        rate = drift < 0 ? 1.60 : 0.50;  // Aggressive correction
     } else {
-        rate = drift < 0 ? 2.0 : 0.5;   // Heavy correction
+        rate = drift < 0 ? 2.0 : 0.25;   // Maximum correction
     }
     
     ytPlayer.setPlaybackRate(rate);
