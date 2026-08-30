@@ -39,6 +39,8 @@ let ytPlayer = null;
 let isPlayerReady = false;
 let overrideStateChange = false; 
 let latestHostSync = { mediaTime: 0, serverTimestamp: 0, state: 2, valid: false };
+let driftHistory = [];
+let integralOffset = 0;
 
 let myName = "";
 let myCountry = "Unknown";
@@ -395,18 +397,34 @@ setInterval(() => {
     const elapsedRealTime = Math.max(0, (getSyncedTime() - latestHostSync.serverTimestamp) / 1000);
     const expectedTime = latestHostSync.mediaTime + elapsedRealTime;
     const currentTime = ytPlayer.getCurrentTime();
-    const drift = currentTime - expectedTime; // negative = behind host
+    const rawDrift = currentTime - expectedTime; // negative = behind host
+    
+    // === Integral component: eliminate persistent offset ===
+    driftHistory.push(rawDrift);
+    if (driftHistory.length > 25) driftHistory.shift(); // ~5 seconds of history
+    
+    if (driftHistory.length >= 10) {
+        const avgDrift = driftHistory.reduce((a, b) => a + b, 0) / driftHistory.length;
+        // Slowly accumulate offset to compensate for persistent device lag
+        integralOffset -= avgDrift * 0.02;
+        // Clamp to prevent runaway correction
+        integralOffset = Math.max(-1.5, Math.min(1.5, integralOffset));
+    }
+    
+    // Apply integral offset — shifts target forward if device is persistently behind
+    const drift = rawDrift + integralOffset;
     
     // Hard seek for massive drift
     if (Math.abs(drift) > 2.0) {
         overrideStateChange = true;
-        ytPlayer.seekTo(expectedTime);
+        ytPlayer.seekTo(expectedTime + integralOffset);
         ytPlayer.setPlaybackRate(1.0);
+        driftHistory.length = 0; // Reset history after hard seek
         setTimeout(() => overrideStateChange = false, 100);
         return;
     }
     
-    // Proportional correction — granular rates in 0.05 increments
+    // === Proportional component: immediate correction ===
     const absDrift = Math.abs(drift);
     let rate = 1.0;
     
