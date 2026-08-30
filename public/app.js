@@ -39,8 +39,7 @@ let ytPlayer = null;
 let isPlayerReady = false;
 let overrideStateChange = false; 
 let latestHostSync = { mediaTime: 0, serverTimestamp: 0, state: 2, valid: false };
-let driftHistory = [];
-let integralOffset = 0;
+let persistentDriftCount = 0; // Counts consecutive cycles of being behind
 
 let myName = "";
 let myCountry = "Unknown";
@@ -397,35 +396,27 @@ setInterval(() => {
     const elapsedRealTime = Math.max(0, (getSyncedTime() - latestHostSync.serverTimestamp) / 1000);
     const expectedTime = latestHostSync.mediaTime + elapsedRealTime;
     const currentTime = ytPlayer.getCurrentTime();
-    const rawDrift = currentTime - expectedTime; // negative = behind host
+    const drift = currentTime - expectedTime; // negative = behind host
+    const absDrift = Math.abs(drift);
     
-    // === Integral component: eliminate persistent offset ===
-    driftHistory.push(rawDrift);
-    if (driftHistory.length > 25) driftHistory.shift(); // ~5 seconds of history
-    
-    if (driftHistory.length >= 10) {
-        const avgDrift = driftHistory.reduce((a, b) => a + b, 0) / driftHistory.length;
-        // Slowly accumulate offset to compensate for persistent device lag
-        integralOffset -= avgDrift * 0.02;
-        // Clamp to prevent runaway correction
-        integralOffset = Math.max(-1.5, Math.min(1.5, integralOffset));
+    // Track persistent drift: if behind by >50ms for ~3 seconds (15 ticks), hard seek
+    if (drift < -0.05) {
+        persistentDriftCount++;
+    } else {
+        persistentDriftCount = 0;
     }
     
-    // Apply integral offset — shifts target forward if device is persistently behind
-    const drift = rawDrift + integralOffset;
-    
-    // Hard seek for massive drift
-    if (Math.abs(drift) > 2.0) {
+    // Hard seek: massive drift OR persistent moderate drift that won't close
+    if (absDrift > 2.0 || persistentDriftCount > 15) {
         overrideStateChange = true;
-        ytPlayer.seekTo(expectedTime + integralOffset);
+        ytPlayer.seekTo(expectedTime + 0.05); // Seek slightly ahead to absorb seek latency
         ytPlayer.setPlaybackRate(1.0);
-        driftHistory.length = 0; // Reset history after hard seek
+        persistentDriftCount = 0;
         setTimeout(() => overrideStateChange = false, 100);
         return;
     }
     
-    // === Proportional component: immediate correction ===
-    const absDrift = Math.abs(drift);
+    // Proportional correction
     let rate = 1.0;
     
     if (absDrift < 0.02) {
